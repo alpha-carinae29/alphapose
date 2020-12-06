@@ -28,8 +28,8 @@ class AlphaPose:
         self.pose_model = builder.build_sppe_model(cfg.MODEL, preset_cfg=cfg.DATA_PRESET)
         print(f'Loading pose model from {args.checkpoint}...')
         self.pose_model.load_state_dict(torch.load(args.checkpoint, map_location=args.device))
-        # print(self.pose_model)
-        # self.detection_model = builder.build_detection_model(self.args, self.cfg)
+        self.detection_model = builder.build_detection_model(self.args)
+        self.detection_model.load_model()
 
     def inference(self, image):
         pass
