@@ -1,2 +1,4 @@
 .idea/
+detectors/yolo/data/*
+*.pth
 __pycache__

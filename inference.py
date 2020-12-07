@@ -32,8 +32,7 @@ class AlphaPose:
         self.detection_model.load_model()
 
     def inference(self, image):
-        pass
-
+        detections = self.detection_model.inference(image)
     def visualize(self, image, poses):
         pass
 

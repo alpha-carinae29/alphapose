@@ -1,5 +1,9 @@
 from detectors.yolo.darknet import Darknet
 
+import numpy as np
+import cv2
+import torch
+
 
 class YoloWrapper:
     def __init__(self, cfg, opt):
@@ -22,3 +26,20 @@ class YoloWrapper:
         self.model.net_info['height'] = self.inp_dim
         self.model.to(args.device)
         self.model.eval()
+
+    def preprocess(self, image):
+        orig_h, orig_w = image.shape[:-1]
+        w, h = self.inp_dim, self.inp_dim
+        new_w = int(orig_w * min(w / orig_w, h / orig_h))
+        new_h = int(orig_h * min(w / orig_w, h / orig_h))
+        resized_image = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
+        padded_image = np.full((h, w, 3), 128)
+
+        padded_image[(h - new_h) // 2:(h - new_h) // 2 + new_h, (w - new_w) // 2:(w - new_w) // 2 + new_w,
+        :] = resized_image
+        padded_image = padded_image[:, :, ::-1].transpose((2, 0, 1)).copy()
+        padded_image = torch.from_numpy(padded_image).float().div(255.0).unsqueeze(0)
+        return padded_image
+    
+    def inference(self, image):
+        preprocessed_image = self.preprocess(image)
