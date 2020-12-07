@@ -124,18 +124,18 @@ def get_ext_modules():
     force_compile = False
     if platform.system() != 'Windows' or force_compile:
         ext_modules = [
-            # make_cython_ext(
-            #     name='soft_nms_cpu',
-            #     module='detector.nms',
-            #     sources=['src/soft_nms_cpu.pyx']),
-            # make_cuda_ext(
-            #     name='nms_cpu',
-            #     module='detector.nms',
-            #     sources=['src/nms_cpu.cpp']),
-            # make_cuda_ext(
-            #     name='nms_cuda',
-            #     module='detector.nms',
-            #     sources=['src/nms_cuda.cpp', 'src/nms_kernel.cu']),
+            make_cython_ext(
+                name='soft_nms_cpu',
+                module='detectors.nms',
+                sources=['src/soft_nms_cpu.pyx']),
+            make_cuda_ext(
+                name='nms_cpu',
+                module='detectors.nms',
+                sources=['src/nms_cpu.cpp']),
+            make_cuda_ext(
+                name='nms_cuda',
+                module='detectors.nms',
+                sources=['src/nms_cuda.cpp', 'src/nms_kernel.cu']),
             # make_cuda_ext(
             #     name='roi_align_cuda',
             #     module='alphapose.utils.roi_align',
