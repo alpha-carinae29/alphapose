@@ -43,21 +43,22 @@ class YoloWrapper:
         :] = resized_image
         padded_image = padded_image[:, :, ::-1].transpose((2, 0, 1)).copy()
         padded_image = torch.from_numpy(padded_image).float().div(255.0).unsqueeze(0)
-        return padded_image
+        return padded_image, torch.FloatTensor((orig_w, orig_h)).repeat(1, 2)
 
     def inference(self, image):
-        preprocessed_image = self.preprocess(image)
+        preprocessed_image, orig_dim = self.preprocess(image)
 
         if not self.model:
             self.load_model()
         with torch.no_grad():
             preprocessed_image = preprocessed_image.to(self.detector_opt.device)
             prediction = self.model(preprocessed_image, args=self.detector_opt)
-            detections = self.postprocess(prediction, self.confidence, self.num_classes, nms=True, nms_conf=self.nms_thres)
+            detections = self.postprocess(prediction, self.confidence, self.num_classes, orig_dim=orig_dim, nms=True, nms_conf=self.nms_thres)
             if isinstance(detections, int) or detections.shape[0] == 0:
                 return 0
+            return detections
 
-    def postprocess(self, prediction, confidence, num_classes, nms=True, nms_conf=0.4):
+    def postprocess(self, prediction, confidence, num_classes, orig_dim, nms=True, nms_conf=0.4):
         conf_mask = (prediction[:, :, 4] > confidence).float().float().unsqueeze(2)
         prediction = prediction * conf_mask
 
@@ -164,5 +165,14 @@ class YoloWrapper:
                 num += 1
         if not num:
             return 0
+        output = output.cpu()
+        orig_dim_list = torch.index_select(orig_dim, 0, output[:, 0].long())
+        scaling_factor = torch.min(self.inp_dim / orig_dim_list, 1)[0].view(-1, 1)
+        output[:, [1, 3]] -= (self.inp_dim - scaling_factor * orig_dim_list[:, 0].view(-1, 1)) / 2
+        output[:, [2, 4]] -= (self.inp_dim - scaling_factor * orig_dim_list[:, 1].view(-1, 1)) / 2
+        output[:, 1:5] /= scaling_factor
+        for i in range(output.shape[0]):
+            output[i, [1, 3]] = torch.clamp(output[i, [1, 3]], 0.0, orig_dim_list[i, 0])
+            output[i, [2, 4]] = torch.clamp(output[i, [2, 4]], 0.0, orig_dim_list[i, 1])
         # output:(n,(batch_ind,x1,y1,x2,y2,c,s,idx of cls))
         return output
