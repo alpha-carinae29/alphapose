@@ -4,6 +4,8 @@ import os
 import cv2
 
 from utils import config_parser
+from utils.bbox import box_to_center_scale, center_scale_to_box
+from utils.transformations import get_affine_transform, im_to_torch
 from builders import builder
 
 parser = argparse.ArgumentParser(description="Simplified Demo of AlphaPose for Single Image")
@@ -25,14 +27,52 @@ class AlphaPose:
     def __init__(self, args, cfg):
         self.args = args
         self.cfg = cfg
+        self._input_size = cfg.DATA_PRESET.IMAGE_SIZE
         self.pose_model = builder.build_sppe_model(cfg.MODEL, preset_cfg=cfg.DATA_PRESET)
         print(f'Loading pose model from {args.checkpoint}...')
         self.pose_model.load_state_dict(torch.load(args.checkpoint, map_location=args.device))
         self.detection_model = builder.build_detection_model(self.args)
         self.detection_model.load_model()
+        self._aspect_ratio = float(self._input_size[1]) / self._input_size[0]
 
     def inference(self, image):
         detections = self.detection_model.inference(image)
+        inps, cropped_boxes = self.transform_detections(image, detections)
+
+    def transform_detections(self, image, dets):
+        if isinstance(dets, int):
+            return 0, 0
+        dets = dets[dets[:, 0] == 0]
+        boxes = dets[:, 1:5]
+        scores = dets[:, 5:6]
+        inps = torch.zeros(boxes.size(0), 3, *self._input_size)
+        cropped_boxes = torch.zeros(boxes.size(0), 4)
+        for i, box in enumerate(boxes):
+            inps[i], cropped_box = self.transform_single_detection(image, box)
+            cropped_boxes[i] = torch.FloatTensor(cropped_box)
+        return inps, cropped_boxes
+
+    def transform_single_detection(self, image, bbox):
+        xmin, ymin, xmax, ymax = bbox
+        center, scale = box_to_center_scale(
+            xmin, ymin, xmax - xmin, ymax - ymin, self._aspect_ratio)
+        scale = scale * 1.0
+
+        input_size = self._input_size
+        inp_h, inp_w = input_size
+
+        trans = get_affine_transform(center, scale, 0, [inp_w, inp_h])
+        inp_h, inp_w = self._input_size
+        img = cv2.warpAffine(image, trans, (int(inp_w), int(inp_h)), flags=cv2.INTER_LINEAR)
+        bbox = center_scale_to_box(center, scale)
+
+        img = im_to_torch(img)
+        img[0].add_(-0.406)
+        img[1].add_(-0.457)
+        img[2].add_(-0.480)
+
+        return img, bbox
+
     def visualize(self, image, poses):
         pass
 
