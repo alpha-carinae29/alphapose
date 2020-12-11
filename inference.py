@@ -31,13 +31,20 @@ class AlphaPose:
         self.pose_model = builder.build_sppe_model(cfg.MODEL, preset_cfg=cfg.DATA_PRESET)
         print(f'Loading pose model from {args.checkpoint}...')
         self.pose_model.load_state_dict(torch.load(args.checkpoint, map_location=args.device))
+        self.pose_model.to(args.device)
+        self.pose_model.eval()
         self.detection_model = builder.build_detection_model(self.args)
         self.detection_model.load_model()
         self._aspect_ratio = float(self._input_size[1]) / self._input_size[0]
 
     def inference(self, image):
         detections = self.detection_model.inference(image)
-        inps, cropped_boxes = self.transform_detections(image, detections)
+        with torch.no_grad():
+            inps, cropped_boxes = self.transform_detections(image, detections)
+            inps = inps.to(self.args.device)
+            hm = self.pose_model(inps)
+            import pdb; pdb.set_trace()
+            print("hi")
 
     def transform_detections(self, image, dets):
         if isinstance(dets, int):
