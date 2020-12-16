@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import torch
 
+
 def get_affine_transform(center,
                          scale,
                          rot,
@@ -81,3 +82,38 @@ def to_torch(ndarray):
         raise ValueError("Cannot convert {} to torch tensor"
                          .format(type(ndarray)))
     return ndarray
+
+
+def get_max_pred(heatmaps):
+    num_joints = heatmaps.shape[0]
+    width = heatmaps.shape[2]
+    heatmaps_reshaped = heatmaps.reshape((num_joints, -1))
+    idx = np.argmax(heatmaps_reshaped, 1)
+    maxvals = np.max(heatmaps_reshaped, 1)
+
+    maxvals = maxvals.reshape((num_joints, 1))
+    idx = idx.reshape((num_joints, 1))
+
+    preds = np.tile(idx, (1, 2)).astype(np.float32)
+
+    preds[:, 0] = (preds[:, 0]) % width
+    preds[:, 1] = np.floor((preds[:, 1]) / width)
+
+    pred_mask = np.tile(np.greater(maxvals, 0.0), (1, 2))
+    pred_mask = pred_mask.astype(np.float32)
+
+    preds *= pred_mask
+    return preds, maxvals
+
+
+def transform_preds(coords, center, scale, output_size):
+    target_coords = np.zeros(coords.shape)
+    trans = get_affine_transform(center, scale, 0, output_size, inv=1)
+    target_coords[0:2] = affine_transform(coords[0:2], trans)
+    return target_coords
+
+
+def affine_transform(pt, t):
+    new_pt = np.array([pt[0], pt[1], 1.]).T
+    new_pt = np.dot(t, new_pt)
+    return new_pt[:2]
